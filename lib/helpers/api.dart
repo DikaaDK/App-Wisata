@@ -6,7 +6,15 @@ import 'package:appwisata/helpers/user_info.dart';
 import 'app_exception.dart';
 
 class Api {
-  static const String baseUrl = 'http://localhost:8080';
+  static String get baseUrl {
+    try {
+      if (Platform.isAndroid) {
+        return 'http://10.0.2.2:8080';
+      }
+    } catch (_) {
+    }
+    return 'http://localhost:8080';
+  }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
@@ -38,29 +46,32 @@ class Api {
     return parsed as Map<String, dynamic>;
   }
 
-  Future<dynamic> post(dynamic url, dynamic data) async {
-    var token = await UserInfo().getToken();
-    dynamic responseJson;
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        body: data,
-        headers: {HttpHeaders.authorizationHeader: "Bearer $token"},
-      );
-      responseJson = _returnResponse(response);
-    } on SocketException {
-      throw FetchDataException('No Internet connection');
+  Future<void> post(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/wisata'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception('Gagal menambah data: ${response.body}');
     }
-    return responseJson;
   }
 
   Future<dynamic> get(dynamic url) async {
-    var token = await UserInfo().getToken();
+    final token = await UserInfo().getToken();
     dynamic responseJson;
     try {
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers[HttpHeaders.authorizationHeader] = "Bearer $token";
+      }
       final response = await http.get(
         url,
-        headers: {HttpHeaders.authorizationHeader: "Bearer $token"},
+        headers: headers.isEmpty ? null : headers,
       );
       responseJson = _returnResponse(response);
     } on SocketException {
@@ -70,13 +81,43 @@ class Api {
   }
 
   Future<dynamic> delete(dynamic url) async {
-    var token = await UserInfo().getToken();
+    final token = await UserInfo().getToken();
     dynamic responseJson;
     try {
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers[HttpHeaders.authorizationHeader] = "Bearer $token";
+      }
       final response = await http.delete(
         url,
-        headers: {HttpHeaders.authorizationHeader: "Bearer $token"},
+        headers: headers.isEmpty ? null : headers,
       );
+      responseJson = _returnResponse(response);
+    } on SocketException {
+      throw FetchDataException('No Internet connection');
+    }
+    return responseJson;
+  }
+
+  Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
+    final token = await UserInfo().getToken();
+    dynamic responseJson;
+
+    try {
+      final headers = <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'application/json',
+      };
+      if (token != null && token.isNotEmpty) {
+        headers[HttpHeaders.authorizationHeader] = "Bearer $token";
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/$endpoint'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+
       responseJson = _returnResponse(response);
     } on SocketException {
       throw FetchDataException('No Internet connection');

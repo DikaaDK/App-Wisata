@@ -1,7 +1,7 @@
 import 'package:http/http.dart' as http;
 
 Future<void> testApi() async {
-  final url = Uri.parse('http://localhost:8080/login'); // ganti URL sesuai API-mu
+  final url = Uri.parse('http://localhost:8080/login'); 
   final response = await http.get(url);
 
   if (response.statusCode == 200) {

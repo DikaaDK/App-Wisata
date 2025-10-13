@@ -1,4 +1,6 @@
+import 'package:appwisata/helpers/api.dart';
 import 'package:appwisata/ui/all_card.dart';
+import 'package:appwisata/ui/detail_card.dart';
 import 'package:appwisata/ui/wisata_form.dart';
 import 'package:flutter/material.dart';
 
@@ -6,15 +8,63 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<Map<String, String>> destinations = [
-    {'name': 'Bali', 'image': '...', 'desc': 'blablabla'},
-    {'name': 'Raja Ampat', 'image': '...', 'desc': 'blablabla'},
-    {'name': 'Borobudur', 'image': '...', 'desc': 'blablabla'},
-  ];
+  List<dynamic> destinations = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchDestinations();
+  }
+
+  Future<void> fetchDestinations() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final api = Api();
+      final result = await api.get(Uri.parse('${Api.baseUrl}/wisata'));
+
+      if (!mounted) return;
+
+      final List<dynamic> items;
+      if (result is List) {
+        items = result;
+      } else if (result is Map<String, dynamic>) {
+        final candidate = result['data'] ?? result['wisata'];
+        if (candidate is List) {
+          items = candidate;
+        } else {
+          throw Exception('Format respons tidak sesuai');
+        }
+      } else {
+        throw Exception('Format respons tidak dikenal');
+      }
+
+      setState(() {
+        destinations = items.take(10).toList();
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = 'Gagal memuat data: $e';
+        isLoading = false;
+        destinations = [
+          {'nama_wisata': 'Bali', 'gambar': '', 'deskripsi': 'Pulau Dewata'},
+          {'nama_wisata': 'Raja Ampat', 'gambar': '', 'deskripsi': 'Surga Bawah Laut'},
+          {'nama_wisata': 'Borobudur', 'gambar': '', 'deskripsi': 'Candi Budha Terbesar'},
+        ];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +80,14 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.only(right: 20.0),
             child: GestureDetector(
               child: const Icon(Icons.add, size: 26.0),
-              onTap: () async {
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const WisataForm()),
-                );
+                ).then((_) {
+                  // Refresh data begitu user balik dari form tambah wisata
+                  fetchDestinations();
+                });
               },
             ),
           )
@@ -50,7 +103,9 @@ class _HomePageState extends State<HomePage> {
                   height: 200,
                   decoration: const BoxDecoration(
                     image: DecorationImage(
-                      image: NetworkImage('...'),
+                      image: NetworkImage(
+                        '', // bisa diganti URL banner default
+                      ),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -65,7 +120,7 @@ class _HomePageState extends State<HomePage> {
                   left: 16,
                   bottom: 16,
                   child: Text(
-                    'Selamat Datang \nJelajahi Destinasi Wisata',
+                    'Selamat Datang\nJelajahi Destinasi Wisata',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -76,6 +131,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
+
             const SizedBox(height: 20),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
@@ -89,73 +145,109 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 220,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: destinations.length,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemBuilder: (context, index) {
-                  final dest = destinations[index];
-                  return Container(
-                    width: 160,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 5,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(15),
+            isLoading
+                ? const SizedBox(
+                    height: 220,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : SizedBox(
+                    height: 220,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: destinations.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemBuilder: (context, index) {
+                        final dest = destinations[index] as Map? ?? {};
+
+                        final String name = (dest['nama_wisata'] ?? dest['nama'] ?? 'Tanpa Nama').toString();
+                        final String desc = (dest['deskripsi'] ?? dest['deskripsi_wisata'] ?? '').toString();
+                        final String imageUrl = (dest['gambar'] ?? dest['image'] ?? '').toString();
+
+                        return Container(
+                          width: 160,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(15),
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 5,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                          child: Image.network(
-                            dest['image']!,
-                            height: 120,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            dest['name']!,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DetailCard(
+                                    name: name,
+                                    image: imageUrl,
+                                    desc: desc,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(15),
+                                  ),
+                                  child: Image.network(
+                                    imageUrl,
+                                    height: 120,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        height: 120,
+                                        color: Colors.grey[300],
+                                        child: const Center(
+                                          child: Icon(Icons.broken_image, size: 40),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                  child: Text(
+                                    desc,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Text(
-                            dest['desc']!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+
             const SizedBox(height: 30),
             Center(
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const AllCardPage(),

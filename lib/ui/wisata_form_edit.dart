@@ -1,27 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:appwisata/helpers/api.dart';
 
-class WisataForm extends StatefulWidget {
-  const WisataForm({super.key});
+class WisataFormEdit extends StatefulWidget {
+  final Map<String, dynamic> data;
+  
+  const WisataFormEdit({super.key, required this.data});
 
   @override
-  State<WisataForm> createState() => _WisataFormState();
+  State<WisataFormEdit> createState() => _WisataFormEditState();
 }
 
-class _WisataFormState extends State<WisataForm> {
+class _WisataFormEditState extends State<WisataFormEdit> {
   final _formKey = GlobalKey<FormState>();
-
   final api = Api();
-  final TextEditingController _nama_wisataController = TextEditingController();
-  final TextEditingController _lokasiController = TextEditingController();
-  final TextEditingController _deskripsiController = TextEditingController();
-  final TextEditingController _gambarController = TextEditingController();
+  
+  late TextEditingController _namaWisataController;
+  late TextEditingController _lokasiController;
+  late TextEditingController _deskripsiController;
+  late TextEditingController _gambarController;
+  
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _namaWisataController = TextEditingController(
+      text: widget.data['nama_wisata']?.toString() ?? widget.data['nama']?.toString() ?? ''
+    );
+    _lokasiController = TextEditingController(
+      text: widget.data['lokasi']?.toString() ?? ''
+    );
+    _deskripsiController = TextEditingController(
+      text: widget.data['deskripsi']?.toString() ?? widget.data['deskripsi_wisata']?.toString() ?? ''
+    );
+    _gambarController = TextEditingController(
+      text: widget.data['gambar']?.toString() ?? widget.data['image']?.toString() ?? ''
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tambah Destinasi Wisata'),
+        title: const Text('Edit Destinasi Wisata'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
@@ -38,7 +59,7 @@ class _WisataFormState extends State<WisataForm> {
               ),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _nama_wisataController,
+                controller: _namaWisataController,
                 decoration: InputDecoration(
                   hintText: 'Nama Wisata',
                   border: OutlineInputBorder(
@@ -82,6 +103,7 @@ class _WisataFormState extends State<WisataForm> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
 
               const Text(
                 'URL Gambar Wisata',
@@ -91,7 +113,7 @@ class _WisataFormState extends State<WisataForm> {
               TextFormField(
                 controller: _gambarController,
                 decoration: InputDecoration(
-                  hintText: 'url',
+                  hintText: 'URL gambar',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -142,27 +164,7 @@ class _WisataFormState extends State<WisataForm> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    if (_formKey.currentState!.validate()) {
-                      final newDestination = {
-                        'nama_wisata': _nama_wisataController.text,
-                        'lokasi': _lokasiController.text,
-                        'gambar': _gambarController.text,
-                        'deskripsi': _deskripsiController.text,
-                      };
-
-                      try {
-                        await api.post(newDestination);
-                        Navigator.pop(context, newDestination);
-                      } catch (e) {
-                        print('Gagal create data: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Gagal menyimpan data')),
-                        );
-                      }
-                    }
-                  },
-
+                  onPressed: _isLoading ? null : _updateDestination,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -170,14 +172,23 @@ class _WisataFormState extends State<WisataForm> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Simpan',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Update',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -187,11 +198,62 @@ class _WisataFormState extends State<WisataForm> {
     );
   }
 
+  Future<void> _updateDestination() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final updatedData = {
+        'nama_wisata': _namaWisataController.text,
+        'lokasi': _lokasiController.text,
+        'gambar': _gambarController.text,
+        'deskripsi': _deskripsiController.text,
+      };
+
+      try {
+        final id = widget.data['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          await api.put('wisata/$id', updatedData);
+        } else {
+          throw Exception('ID destinasi tidak ditemukan');
+        }
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil diupdate'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        Navigator.pop(context, true);
+      } catch (e) {
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengupdate data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
-    _nama_wisataController.dispose();
-    _gambarController.dispose();
+    _namaWisataController.dispose();
+    _lokasiController.dispose();
     _deskripsiController.dispose();
+    _gambarController.dispose();
     super.dispose();
   }
 }

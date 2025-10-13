@@ -24,12 +24,29 @@ class DetailCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(
-              image,
-              width: double.infinity,
-              height: 250,
-              fit: BoxFit.cover,
-            ),
+            image.isNotEmpty
+                ? Image.network(
+                    image,
+                    width: double.infinity,
+                    height: 250,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 250,
+                        color: Colors.grey[300],
+                        child: const Center(
+                          child: Icon(Icons.broken_image, size: 60),
+                        ),
+                      );
+                    },
+                  )
+                : Container(
+                    height: 250,
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Icon(Icons.image_not_supported, size: 60),
+                    ),
+                  ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
